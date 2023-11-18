@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/Vostbur/go-learning/todo"
 )
@@ -15,6 +19,8 @@ const (
 func main() {
 	add := flag.Bool("add", false, "add a new todo")
 	complete := flag.Int("complete", 0, "mark a todo as completed")
+	del := flag.Int("del", 0, "delete a todo")
+	list := flag.Bool("list", false, "list all todos")
 
 	flag.Parse()
 
@@ -27,7 +33,13 @@ func main() {
 
 	switch {
 	case *add:
-		todos.Add("Sample todo")
+		task, err := getInput(os.Stdin, flag.Args()...)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+
+		todos.Add(task)
 		if err := todos.Store(todoFile); err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
@@ -41,8 +53,38 @@ func main() {
 			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
+	case *del > 0:
+		if err := todos.Delete(*del); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+		if err := todos.Store(todoFile); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+	case *list:
+		todos.Print()
 	default:
 		fmt.Fprintln(os.Stdout, "invalid command")
 		os.Exit(0)
 	}
+}
+
+func getInput(r io.Reader, args ...string) (string, error) {
+	if len(args) > 0 {
+		return strings.Join(args, " "), nil
+	}
+
+	scanner := bufio.NewScanner(r)
+	scanner.Scan()
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
+	text := scanner.Text()
+	if len(text) == 0 {
+		return "", errors.New("empty todo is not allowed")
+	}
+
+	return text, nil
 }
